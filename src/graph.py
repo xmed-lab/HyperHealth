@@ -175,7 +175,6 @@ class NonRelevant(nn.Module):
             g_batch.edata['etype'] = relation_remap  #
             g_batch.edata['fea'] = virtual_emb(relation_remap)
 
-        # semantic projection & graph projection
         embs = embs.detach() # 是否detach
         embs = self.transfer_net(embs[mask]) # M,emb
 
@@ -250,7 +249,6 @@ class KGPruning(nn.Module):
         self.non_relevant_remove = NonRelevant(kg_emb_size, kg_edge_emb_size, emb_size, hidden_size, dropout=0.5) # 0.5
 
     def forward(self, kgs, embs, mask,  reluc=False, virtual_emb=None):
-        '''去噪'''
         kgs_new, edge_masks_new, regs = [], [], []
         for index, kg_batch_lis in enumerate(kgs):
             edge_masks, kg_batch_lis, reg = self.non_relevant_remove(kg_batch_lis, embs[index], mask,  reluc, virtual_emb)
@@ -449,7 +447,7 @@ class myRGAT(nn.Module):
             nodes_h = nodes_h.flatten(1)
             graph_rst = graph_rst.flatten(1) # Num,emb
             # graph_rst = F.normalize(graph_rst, dim=1)
-            embs.append(graph_rst) # 这里看看要不也搞成家和的形式
+            embs.append(graph_rst)
 
         embs = self.proj(th.cat(embs, dim=1)) # B,T,3D->B,T,D
         # embs = th.stack(embs, dim=1).sum(dim=1)/self.num_kg_layers # B,3,T,2D->B,T,2D
@@ -467,7 +465,6 @@ class KGEncoder(nn.Module):
         self.type_emb = nn.Embedding(3, num_hidden)
 
     def forward(self, kgs_new, edge_masks_new, length_new):
-        """调用GAT layer, 返回embedding"""
         embs_new= []
         i=0
         for g_batch, edge_mask, length in zip(kgs_new, edge_masks_new, length_new):
@@ -485,10 +482,6 @@ class KGEncoder(nn.Module):
 
 # Hypergraph model
 class NeibRoutLayer(nn.Module):
-    """核心卷积层
-    注意这里Node,Edge表征只能用train_dataset中的，如果没有的需要置0
-    Next Basket Recommendation with Intent-aware Hypergraph Adversarial Network
-    """
     def __init__(self, num_caps, niter, tau=1.0, n_fold=20):
         super(NeibRoutLayer, self).__init__()
         # 通道数量
@@ -499,7 +492,6 @@ class NeibRoutLayer(nn.Module):
         self.n_fold = n_fold
 
     def forward(self, x, adjacency, edge_node, alpha=1.0, flag=True):
-        """其实也可以把edge的类型传入，这样可以同步计算其实; x是item embeddings"""
         # edge_node = th.LongTensor(edge_node)
         m_all, edge_all_edgesort, node_all_edgesort = edge_node.shape[1], edge_node[0], edge_node[1]  # edge_index, node_index
         node_all_edgesort, edge_all_edgesort = node_all_edgesort.to(x.device), edge_all_edgesort.to(x.device)
@@ -508,20 +500,12 @@ class NeibRoutLayer(nn.Module):
 
         n, d = x.shape
 
-        # 超边的数量
-        e = adjacency.shape[0]  # 【Edge，Node】
-        # delta_d:解耦合的维度
+        e = adjacency.shape[0]
         k, delta_d = self.k, d // self.k  # embedding分成num_cap份
         x = F.normalize(x.view(n, k, delta_d), dim=2)
 
         # th.save({'symptom': x.cpu()},'/home/czhaobo/HyperHealth/src/sym.pt')
         x = x.view(n, d)
-
-        # 使用权重save
-
-        # th.cuda.synchronize()
-        # import time
-        # start = time.time()
 
         # 边表征初始化:e*d
         # print("AAAAAAA", adjacency.shape, x.shape) # 这里padding要从unk开始,不要pad
@@ -594,9 +578,6 @@ class NeibRoutLayer(nn.Module):
                 # 这里是attention计算
                 p = (z_edge * u_node[node].view(m, k, delta_d)).sum(dim=2)
                 p = F.softmax(p / self.tau, dim=1)
-                # end_31 = time.time()
-                # print("Check 3.1", end_31-end2) # 0.00017
-                # scatter_edge:汇聚到节点上的边
                 scatter_edge = (z_edge * p.view(m, k, 1)).view(m, d) # E,D
                 del p
                 u_node = th.zeros(n, d, device=x.device)
@@ -672,25 +653,6 @@ class HyperConv(nn.Module):
 
         return edge_index[:, random_indices]
 
-    # def _edge_sampling(self, edge_index, rate=1.0):
-    #     n_edges = edge_index.size(1)
-    #     # 如果采样率接近或等于1，直接返回原始的edge_index
-    #     if rate >= 1.0:
-    #         return edge_index
-    #     # 使用th.randperm生成随机索引
-    #     random_indices = th.randperm(n_edges)[:int(n_edges * rate)]
-    #     return edge_index[:, random_indices]
-
-    # def _edge_sampling(self, edge_index, rate=1.0):
-    #     """这里看起来似乎有问题,传入shape不一致"""
-    #     # 假设edge_index形状为[N, 2]，其中N是边的数量
-    #     n_edges = edge_index.shape[0]  # 更正为0，获取边的数量
-    #     # 根据采样率计算采样数量，确保至少采样1条边
-    #     n_samples = int(n_edges * rate) # 没有的情况下就是没有
-    #     # 随机选择边的索引
-    #     random_indices = np.random.choice(n_edges, size=n_samples, replace=False)
-    #     # 返回随机选择的边
-    #     return edge_index[random_indices, :]
 
     def forward(self, edge_node):
         if self.layers == 0:

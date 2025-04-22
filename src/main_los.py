@@ -207,7 +207,7 @@ def run_single_config():
                 # hyperg_tup = load_pickle(root_to + 'hyperg_tup.pkl')
                 # pair_tup = load_pickle(root_to + 'pair_tup.pkl')
                 # n_nodes_tup = load_pickle(root_to + 'n_nodes_tup.pkl')
-                # print("Pair HyperEdge", len(pair_tup[0]), len(pair_tup[1]), len(pair_tup[2])) # 没啥用，因为这里一条超边会有非常多的pair
+                # print("Pair HyperEdge", len(pair_tup[0]), len(pair_tup[1]), len(pair_tup[2])) 
                 tokenizers = get_tokenizers(sample_dataset) # 删减hyper edge
                 hyperg_tup, pair_tup, n_nodes_tup = create_hyperg(train_dataset, tokenizers, ono_level=2) # 前两位相等即可
                 # save_pickle(hyperg_tup, root_to + 'hyperg_tup.pkl')

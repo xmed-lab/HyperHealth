@@ -6,7 +6,7 @@
 # Time       ：1/4/2024 8:20 am
 # Author     ：Chuang Zhao
 # version    ：python 
-# Description：这里感觉有点问题。为啥跑不同；唯一的差别看起来是是否引入外部的KG emb?
+# Description：
 """
 
 import itertools
@@ -140,10 +140,10 @@ class Rec_Layer(nn.Module):
                                             )
 
         self.decision = nn.Sequential(nn.Linear(8*embedding_dim, embedding_dim//2, bias=False),
-                                        nn.LeakyReLU(), # 增强非线形拟合的能力
+                                        nn.LeakyReLU(),
                                         nn.Dropout(dropout),
                                         nn.Linear(embedding_dim//2, 2, bias=False),
-                                        nn.Softmax(dim=1)) # 这里多加一个softmax；这里用sigmoid会不会好点
+                                        nn.Softmax(dim=1))
         self.dropout_seq = nn.Dropout(dropout)
         self.proj1, self.proj2 = nn.Linear(3 * embedding_dim, embedding_dim, bias=False), nn.Linear(3 * embedding_dim, embedding_dim, bias=False)
 
@@ -204,7 +204,6 @@ class Rec_Layer(nn.Module):
         # print(" gate", gate)
 
 
-        # 需要drugs_emb,
         labels_emb, label_mask = drug_fea # B, D
         # fea_sim = torch.einsum('ik,jk->ij', labels_emb, labels_emb) # M,M
 
@@ -278,7 +277,7 @@ class Rec_Layer(nn.Module):
         emb_split: Optional[torch.Tensor] = None,
         aux_reg: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        # mul_pred_prob = y_prob.T @ y_prob  # B,D-> B,D (voc_size, voc_size)，感觉这里会有问题。过大的batchsize会有问题。
+        
         ddi_loss = 0 # (mul_pred_prob * ddi_adj).sum() / (ddi_adj.shape[0] ** 2) # 这里感觉也有问题，是乘以固定值 0.0005
 
         y_pred = y_prob.detach().cpu().numpy()
@@ -373,16 +372,16 @@ class HyperRec(BaseModel):
         self.kg_node_embedding = torch.nn.Embedding(n_entity, self.kg_embedding_dim, padding_idx=n_entity-1) # 最后一个是pad掉的
         self.kg_edge_embedding = torch.nn.Embedding(n_relation, self.relation_embedding_dim, padding_idx=n_relation-1)
         self.feat_tokenizers = self.get_feature_tokenizers() # tokenizer
-        self.label_tokenizer = self.get_label_tokenizer() # 注意这里的drug可没有spec_token; 这里label索引需要加2对于正则化
+        self.label_tokenizer = self.get_label_tokenizer()
         self.label_size = self.label_tokenizer.get_vocabulary_size()
 
         # save ddi adj
         self.ddi_adj = torch.nn.Parameter(self.generate_ddi_adj(), requires_grad=False)
         ddi_adj = self.generate_ddi_adj() # 用于存储
-        np.save(os.path.join(CACHE_PATH, "ddi_adj.npy"), ddi_adj.numpy()) # 计算ddi直接从这里读取
+        np.save(os.path.join(CACHE_PATH, "ddi_adj.npy"), ddi_adj.numpy())
 
         # module
-        self.kg_pruning = KGPruning(self.embedding_dim, self.hidden_dim, self.kg_embedding_dim, self.relation_embedding_dim, dropout=dropout) # 太小会导致过拟合, 太大会前拟合
+        self.kg_pruning = KGPruning(self.embedding_dim, self.hidden_dim, self.kg_embedding_dim, self.relation_embedding_dim, dropout=dropout)
         self.kg_encoder = KGEncoder(self.num_gnn_layers-1, self.hidden_dim, self.hidden_dim, self.hidden_dim, output_size=self.embedding_dim, dropout=dropout)
         # from graph import HAR
         # self.kg_encoder = HAR(self.num_gnn_layers, self.hidden_dim, self.hidden_dim, self.hidden_dim, output_size=self.embedding_dim, dropout=dropout)
@@ -404,13 +403,12 @@ class HyperRec(BaseModel):
             self.kg_node_embedding.weight.data.copy_(torch.from_numpy(pretrained_embs))
             self.kg_node_embedding.weight.requires_grad = False
 
-        # 超图需要传入embedding, 也可以不共用，看看效率【这里的rate比例是attention的比例。】
         self.hgats = torch.nn.ModuleDict(
             {
                 x: HyperConv(self.hyperg_tup[index], self.embeddings[x].weight, layers=self.num_gnn_layers-1, n_caps=config['SYM_NUM'], routit=config['ITER'], rate=config['HYPERATE'], device=self.device, n_fold=config['N_FOLD'])
                 for index, x in enumerate(feature_keys)
-            } # 只要一层，不然太耗时了。weight.shape[1]
-        ) # 使用十分之一的超边
+            }
+        )
 
 
     def init_weights(self):
@@ -453,13 +451,12 @@ class HyperRec(BaseModel):
         return ddi_adj
 
     def encode_patient(self, feature_key: str, raw_values: List[List[List[str]]]) -> torch.Tensor:
-        #  这里这个哥们设定了个10，我说怎么半天搞不定，草【这里设定sequence max，codes max】, 但感觉短一点是不是也好
         codes = self.feat_tokenizers[feature_key].batch_encode_3d(raw_values, max_length=[config['MAXSEQ'],config['MAXCODESEQ']]) # 这里会padding, B,V,M
         codes = torch.tensor(codes, dtype=torch.long, device=self.device)
         masks = codes!=0 # B,V,M
         embeddings = self.embeddings[feature_key](codes) # B,V,M,D
         embeddings = self.dropout_id(embeddings)
-        visit_emb = torch.sum(embeddings, dim=2) # 每个时间节点是multi-hot，所有这里使用了sum; 这里因为0对应的embedding是0
+        visit_emb = torch.sum(embeddings, dim=2) # 
         return codes, embeddings, masks, visit_emb # B,V, D
 
     # def encode_patient_kg_type(self, kg, max_length=[config['MAXSEQ'],config['KGPER']]): # config['MAXSEQ'],config['MAXCODESEQ']
@@ -549,7 +546,7 @@ class HyperRec(BaseModel):
     def encode_hyper_emb_batch(self, cond_codes, proc_codes, drug_codes, labels):
         """可能需要预先的pretrain"""
         self.encode_hyper_emb() # forward
-        batch_emb_cond = self.node_emb_cond[cond_codes] # B,V,M,D;很明显不对了
+        batch_emb_cond = self.node_emb_cond[cond_codes]
         batch_emb_proc = self.node_emb_proc[proc_codes]
         batch_emb_drug = self.node_emb_drug[drug_codes]
         # sum
@@ -607,7 +604,7 @@ class HyperRec(BaseModel):
         # patient_id_emb = self.id_embeddings(torch.tensor(id_index, dtype=torch.long, device=self.device))
 
         # prepare labels
-        labels = self.prepare_labels(kwargs[self.label_key], self.label_tokenizer) # 我们是一人多个序列，很有可能出现全部为0的情况
+        labels = self.prepare_labels(kwargs[self.label_key], self.label_tokenizer)
 
         # candidate_context
         labels_code = torch.tensor(list(range(2, self.drug_size+2)), device=self.device, dtype=torch.long)

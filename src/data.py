@@ -260,7 +260,7 @@ def length_of_stay_prediction_mimic4_fn(patient: Patient):
     samples[0]["conditions"] = samples[0]["conditions"]
     samples[0]["procedures"] = samples[0]["procedures"]
     samples[0]["drugs_hist"] = samples[0]["drugs_hist"]
-    samples[0]["conditions_kg"] = samples[0]["conditions_kg"]#[extract_subgraph(tmp_samples[0]["conditions"])] # 不然会更新错误
+    samples[0]["conditions_kg"] = samples[0]["conditions_kg"]
     samples[0]["procedures_kg"] = samples[0]["procedures_kg"]#[extract_subgraph(tmp_samples[0]["procedures"])]
     samples[0]["drugs_hist_kg"] = samples[0]["drugs_hist_kg"]#[extract_subgraph(tmp_samples[0]["drugs_hist"])]
 
@@ -470,7 +470,6 @@ def create_hyperg(dataset, tokenizers, ono_level=2, mapping=False):
 
     cond_train_bundle.extend(cond_set_bundle), proc_train_bundle.extend(proc_set_bundle), drug_train_bundle.extend(drug_set_bundle)
     cate_con.extend([0]*len(cond_set_bundle)), cate_proc.extend([0]*len(proc_set_bundle)), cate_drug.extend([0]*len(drug_set_bundle))
-    # transition rule, 这个太多了也
     # trans_changes = extract_changes(last_visits)
     # cond_tran_bundle, proc_tran_bundle, drug_tran_bundle = trans_changes['conditions'], trans_changes['procedures'], trans_changes['drugs']
     # cond_train_bundle.extend(cond_tran_bundle), proc_train_bundle.extend(proc_tran_bundle), drug_train_bundle.extend(drug_tran_bundle)
@@ -515,21 +514,17 @@ def create_hyperg(dataset, tokenizers, ono_level=2, mapping=False):
     def get_bundle(train_bundle, num_node, type_lis):
         indptr, indices, data, typs, hyps = [0], [], [], [], []  # 每行非0元素的起始位置；非0元素的列索引；数据
         for j in range(len(train_bundle)):
-            bundle = np.unique(train_bundle[j])  # 就是一个basket里面就连一个边[1,2,3,4],item id就是列索引
+            bundle = np.unique(train_bundle[j])
             length = len(bundle)  # 4
-            hyp = [j] * length  # 超边
-            typ = [type_lis[j]] * length  # 类型
+            hyp = [j] * length
+            typ = [type_lis[j]] * length
             s = indptr[-1]  # 0
-            indptr.append((s + length))  # 0,4,8->[0,4]存在第一行;
+            indptr.append((s + length))
             indices.extend(bundle)  # [1,2,3,4,1,2,3,4]
             data.extend([1] * length)
             typs.extend(typ)  # [0,0,0,0,1,1,1,1]
             hyps.extend(hyp)  # [0,0,0,0,1,1,1,1]
-            # for i in range(length):  # 稠密矩阵转稀疏矩阵
-            #     indices.append(bundle[i])  # [1,2,3,4,1,2,3,4]
-            #     data.append(1)  # [1,1,1,1,1,1,1,1]
-            #     typs.append(typ[i])  # [0,0,0,0,1,1,1,1]
-            #     hyps.append(hyp[i])  # [0,0,0,0,1,1,1,1]
+           
         H_T = csr_matrix((data, indices, indptr), shape=(len(train_bundle), num_node)).tocoo()  # 超边，节点
         pair_hyper_ehr = list(zip(hyps, H_T.col, typs))  # hyper_edge, node, type
         return H_T, pair_hyper_ehr, num_node # len(H_T.col)
@@ -589,17 +584,14 @@ def query_nn_neighbor(query, k=5, trun_ratio=0.01):
 
 
 def extract_subgraph(code_lis, label=False, fuzz=False, type=None):
-    """从code_list中提取子图, edge需要把0位置编码留给自己, 也可以后续成图后搞定self loop;
-    看看能不能搞成近邻抽取"""
     # 检索index
     if fuzz:
-        # 给定code获取名字;
         if type:
             code2name = ehr_code2name[type]
             # code_name = [code2name[code] for code in code_lis if code in code2name]
             code_name = [code2name.get(code, code) for code in code_lis] # 没有code则返回其本身
         else:
-            code_name = code_lis # 自身
+            code_name = code_lis
         index = query_nn_neighbor(code_name, k=config['FUZZ'], trun_ratio=0.001)
         code_list = index.flatten().tolist()
         code_list = [ehr_id_dic[code] for code in code_list]

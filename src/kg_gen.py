@@ -110,19 +110,15 @@ def visual_kg_emb(name_file, emb_file, trun_ratio=0.01, k=5, nk=5):
     trun_num = round(all_reps_emb.shape[0] * trun_ratio)
     index_name, all_reps_emb = np.array(list(index_name_dict.keys())[:trun_num]), all_reps_emb[:trun_num]
 
-    # 将嵌入转换为NumPy数组
     indices = list(range(all_reps_emb.shape[0]))
     embedding_matrix = np.array(all_reps_emb)
 
-    # 降维
     tsne = TSNE(n_components=2, random_state=42)
     embeddings_2d = tsne.fit_transform(embedding_matrix)
 
-    # 可视化所有点
     plt.figure(figsize=(10, 10))
     plt.scatter(embeddings_2d[:, 0], embeddings_2d[:, 1], alpha=0.5)
 
-    # 选择几个锚点和标记它们及其最近的5个近邻
     anchors = np.random.choice(len(indices), size=k, replace=False)  # 随机选择5个锚点
     print(anchors)
     near_index = near(embedding_matrix[anchors], embedding_matrix, index_name, k=nk+1, real_index=False)
@@ -449,7 +445,6 @@ def multi_pro(code_map, category, flag='ehr_kg'):
 
 
 def filter_codes(dataset1, dataset2, code_type1, code_type2):
-    """只需要mimic-iii，iv中出现过的code"""
     names_set = {}
     voc_set = {}
     icd10_set = {}
@@ -522,7 +517,7 @@ def using_code(feature_keys):
         root="/home/czhaobo/KnowHealth/data/physionet.org/files/mimiciii/1.4",
         tables=["DIAGNOSES_ICD", "PROCEDURES_ICD", "PRESCRIPTIONS"],
         code_mapping={"NDC": ("ATC", {"target_kwargs": {"level": 3}})},
-        dev=False,  # 这个为False则用全量数据
+        dev=False,
         refresh_cache=False,
     )
     base_dataset1.stat()
@@ -537,7 +532,7 @@ def using_code(feature_keys):
         code_mapping={"NDC": ("ATC", {"target_kwargs": {"level": 3}})},
         dev=False,
         refresh_cache=False, # 第一次用True
-    ) # 我去，他用的咋是ICD10编码
+    )
     base_dataset2.stat()
     sample_dataset2 = base_dataset2.set_task(drug_recommendation_mimic4_fn)
     sample_dataset2_1 = base_dataset2.set_task(length_of_stay_prediction_mimic4_fn)
@@ -550,7 +545,7 @@ def using_code(feature_keys):
     code_type2 = {'conditions':diag_sys2, 'procedures':proc_sys2, 'drugs': med_sys2}
 
 
-    rec_voc, rec_names_set, rec_icd10_set = filter_codes(sample_dataset1, sample_dataset2, code_type1, code_type2) # 针对rec会返回三个，存储的{conditions:(name)}
+    rec_voc, rec_names_set, rec_icd10_set = filter_codes(sample_dataset1, sample_dataset2, code_type1, code_type2) 
     los_voc, los_names_set, los_icd10_set = filter_codes(sample_dataset1_1, sample_dataset2_1, code_type1, code_type2)
     mor_voc, mor_names_set, mor_icd10_set = filter_codes(sample_dataset1_2, sample_dataset2_2, code_type1, code_type2)
     red_voc, red_names_set, red_icd10_set = filter_codes(sample_dataset1_3, sample_dataset2_3, code_type1, code_type2)

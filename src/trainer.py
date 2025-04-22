@@ -6,7 +6,7 @@
 # Time       ：8/3/2024 9:14 am
 # Author     ：Chuang Zhao
 # version    ：python 
-# Description：标准的Traier，只需要修改multi-class
+# Description：
 """
 import logging
 import os

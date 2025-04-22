@@ -43,7 +43,6 @@ def cal_num(all_samples):
     total_label = []
     for sample in all_samples:
         total_label.append(sample['label'])
-    # print(len(tota_drug)) # 有部分药物从未出现过；
     return len(total_label), sum(total_label)
 
 
